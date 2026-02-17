@@ -1,12 +1,19 @@
 import gradio as gr
+from amp_background import *
 
 html_code = """
 <div id="map" style="height:500px;"></div>
 """
 
-def process_json(x):
-    print("recieved json", x)
-    return x
+def process_json(data):
+    print("recieved json", data)
+
+    poly, points, path = get_paths_for_data(data, False)
+    fig, ax = plt.subplots(figsize=(10, 10))
+    fig.tight_layout()
+    show_results(poly, points, path, (fig, ax))
+
+    return fig
 
 with gr.Blocks() as demo:
 
@@ -15,11 +22,12 @@ with gr.Blocks() as demo:
 
     # Hidden textbox to receive JS data
     hidden = gr.Textbox(visible=True, elem_id="data_dest")
-    output = gr.Textbox(label="Received Data")
+    output = gr.Plot()
 
     # JS sets value into hidden
     hidden.change(lambda x: process_json(x), hidden, output)
 
+demo.queue()
 demo.launch(js="""
 /* 1. Load Leaflet CSS */
 var leafletCss = document.createElement('link');

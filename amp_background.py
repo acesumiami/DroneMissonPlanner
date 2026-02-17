@@ -1,0 +1,403 @@
+import ast, numpy as np, matplotlib.pyplot as plt
+# Graphing
+from shapely.geometry import Point, Polygon, MultiPolygon
+from matplotlib.collections import LineCollection
+import contextily as ctx
+
+
+# DATA = """
+# {
+#   "type": "FeatureCollection",
+#   "features": [
+#     {
+#       "type": "Feature",
+#       "properties": {},
+#       "geometry": {
+#         "type": "Polygon",
+#         "coordinates": [
+#           [
+#             [
+#               -80.163079,
+#               25.731
+#             ],
+#             [
+#               -80.163079,
+#               25.731546
+#             ],
+#             [
+#               -80.162569,
+#               25.731546
+#             ],
+#             [
+#               -80.162569,
+#               25.731
+#             ],
+#             [
+#               -80.163079,
+#               25.731
+#             ]
+#           ]
+#         ]
+#       }
+#     },
+#     {
+#       "type": "Feature",
+#       "properties": {},
+#       "geometry": {
+#         "type": "Polygon",
+#         "coordinates": [
+#           [
+#             [
+#               -80.168438,
+#               25.734325
+#             ],
+#             [
+#               -80.168438,
+#               25.735929
+#             ],
+#             [
+#               -80.166421,
+#               25.735929
+#             ],
+#             [
+#               -80.166421,
+#               25.734325
+#             ],
+#             [
+#               -80.168438,
+#               25.734325
+#             ]
+#           ]
+#         ]
+#       }
+#     },
+#     {
+#       "type": "Feature",
+#       "properties": {},
+#       "geometry": {
+#         "type": "Polygon",
+#         "coordinates": [
+#           [
+#             [
+#               -80.172279,
+#               25.729956
+#             ],
+#             [
+#               -80.172279,
+#               25.731831
+#             ],
+#             [
+#               -80.16906,
+#               25.731831
+#             ],
+#             [
+#               -80.16906,
+#               25.729956
+#             ],
+#             [
+#               -80.172279,
+#               25.729956
+#             ]
+#           ]
+#         ]
+#       }
+#     },
+#     {
+#       "type": "Feature",
+#       "properties": {},
+#       "geometry": {
+#         "type": "Polygon",
+#         "coordinates": [
+#           [
+#             [
+#               -80.156529,
+#               25.734382
+#             ],
+#             [
+#               -80.156529,
+#               25.73589
+#             ],
+#             [
+#               -80.154383,
+#               25.73589
+#             ],
+#             [
+#               -80.154383,
+#               25.734382
+#             ],
+#             [
+#               -80.156529,
+#               25.734382
+#             ]
+#           ]
+#         ]
+#       }
+#     }
+#   ]
+# }
+# """
+
+DATA = """
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -80.163009,
+              25.731541
+            ],
+            [
+              -80.16206,
+              25.731536
+            ],
+            [
+              -80.162081,
+              25.730599
+            ],
+            [
+              -80.162859,
+              25.730604
+            ],
+            [
+              -80.163009,
+              25.731541
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -80.164452,
+              25.730913
+            ],
+            [
+              -80.164452,
+              25.731179
+            ],
+            [
+              -80.163894,
+              25.731179
+            ],
+            [
+              -80.163894,
+              25.730913
+            ],
+            [
+              -80.164452,
+              25.730913
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}
+"""
+def extract_geometry(string_json):
+    data = ast.literal_eval(string_json)
+
+    polygons = []
+    points = []
+
+    for f in data['features']:
+        geo = f['geometry']
+        type = geo['type']
+        if type == "Point":
+            points.append(geo)
+        elif type == "Polygon":
+            coords = geo["coordinates"][0]  # outer ring
+            poly = Polygon(coords)
+            polygons.append(poly)
+        else:
+            print(f"Unknown type: {type}")
+    return {"poly": polygons, "pts": points }
+
+def points_from_poly(poly, num_points):
+    """
+    Uniformly sample points inside a polygon or multipolygon.
+    """
+    points = []
+    
+    minx, miny, maxx, maxy = poly.bounds
+
+    n = int(np.sqrt(num_points))
+
+    X, Y = np.meshgrid(np.linspace(minx, maxx, n), np.linspace(miny, maxy, n))
+    for (x, y) in zip(X.flatten(), Y.flatten()):
+        p = Point(x, y)
+        if poly.contains(p):
+            points.append([x, y])
+
+    return points
+
+def get_path(point_id, points, v = np.zeros(2)):
+    point = points[point_id]
+    remaining = np.vstack([
+        points[:point_id],
+        points[1 + point_id:]
+    ])
+
+    points = [point]
+    while len(remaining) > 0:
+        d = remaining - point
+        norm = np.linalg.norm(d, axis=-1) # slightly wrong bc missing lat,lon jacobian
+        cos = np.vecdot(d / norm[..., np.newaxis], v[np.newaxis, :])
+
+        loss = norm - cos * 1e-16
+        best_id = np.argmin(loss)
+        best = remaining[best_id]
+        v = best - point
+        v /= np.linalg.norm(v)
+        points.append(best)
+        point = best
+        remaining = np.vstack([
+            remaining[:best_id],
+            remaining[best_id + 1:]
+        ])
+    return points
+
+def get_best_path_exhaustive(points):
+    best = np.inf
+    best_path = []
+    dirs = np.array([
+        [0, 1],
+        [0, -1],
+        [1, 0],
+        [-1, 0],
+    ])
+    for start in range(len(points)):
+        print(start / len(points))
+        for dir in dirs:
+            p = np.array(get_path(
+                start,
+                points,
+                dir
+            ))
+            d = np.sum(np.linalg.norm(p[1:] - p[:-1], axis=-1))
+            if d < best:
+                best = d
+                best_path = p
+    return best_path
+
+def get_best_path_random(n_tests, points):
+    best = np.inf
+    best_path = []
+    if n_tests >= len(points):
+        print("large n, shifting to exhaustive")
+        return get_best_path_exhaustive(points)
+    for _ in range(n_tests):
+        start = np.random.randint(0, len(points))
+        p = np.array(get_path(
+            start,
+            points
+        ))
+        d = np.sum(np.linalg.norm(p[:1] - p[:-1], axis=-1))
+        if d < best:
+            best = d
+            best_path = p
+    return p
+
+def connect_paths(paths):
+    best_score = np.inf
+    best = []
+    for i in range(len(paths)):
+        print((i + 1) / len(paths))
+        last = paths[i]
+        path = list(last)
+        remaining = list(paths[:i]) + list(paths[i + 1:])
+        score = 0
+        while len(remaining) > 1:
+            st = np.array([i[0] for i in remaining])
+            loss = np.linalg.norm(st - np.array(last[-1])[np.newaxis, ...], axis=-1)
+            best_id = np.argmin(loss)
+            score += loss[best_id]
+            last = paths[best_id]
+            path += list(last)
+            remaining = list(remaining[:best_id]) + list(remaining[best_id + 1:])
+        for i in remaining:
+            path += list(i)
+
+        if score < best_score:
+            best_score = score
+            best = path
+    return best
+
+# import geopandas as gdf
+def show_results(polygons, points, path, plot=None):
+    print(dir(ctx.providers))
+
+    from shapely.ops import transform
+    from pyproj import Transformer
+
+    transformer = Transformer.from_crs("epsg:4326", "epsg:3857", always_xy=True)
+    sampled_points_web = np.array([transformer.transform(x, y) for x, y in points])
+    path_web = np.array([transformer.transform(x, y) for x, y in path.reshape((-1, 2))])
+
+    # Create figure
+    if plot is None:
+        fig, ax = plt.subplots(figsize=(10, 10))
+    else:
+        fig, ax = plot
+    ax.scatter(sampled_points_web[:, 0], sampled_points_web[:, 1], color="red", s=10)
+
+    # Create LineCollection for path with gradient
+    p = path_web.reshape((-1, 1, 2))
+    ax.set_aspect('equal')
+    segments = np.concatenate([p[:-1], p[1:]], axis=1)
+    lc = LineCollection(segments, cmap='magma', linewidth=2)
+    lc.set_array(np.linspace(0, 1, len(p)))
+    ax.add_collection(lc)
+
+    # Add background map
+    ctx.add_basemap(ax)
+
+    # Set title and axis
+    ax.set_title("Uniformly Sampled Points in Polygons with Background")
+    ax.set_axis_off()
+    plt.show()
+
+def get_paths_for_data(data_str, seperate_paths=True):
+    geo = extract_geometry(data_str)
+    points = []
+    for pt in geo['pts']:
+        points.append(pt['coordinates'])
+
+    paths = []
+    if len(points) > 0:
+        paths.append(get_best_path_exhaustive(np.array(points)))
+
+    if seperate_paths:
+        for p in geo['poly']:
+            pts = points_from_poly(p, 100)
+            points += pts
+            paths.append(get_best_path_exhaustive(np.array(pts)))
+        points = np.array(points)
+
+        path = np.array(connect_paths(paths))
+        return (geo['poly'], np.array(points).reshape((-1, 2)), np.array(paths).reshape((-1, 2)))
+    else:
+        for p in geo['poly']:
+            pts = points_from_poly(p, 100)
+            points += pts
+        points = np.array(points)
+        paths = get_best_path_exhaustive(points)
+        return (geo['poly'], np.array(points).reshape((-1, 2)), np.array(paths).reshape((-1, 2)))
+
+if __name__ == "__main__":
+    poly, points, path = get_paths_for_data(DATA, False)
+    show_results(poly, points, path)
+
+

@@ -1,3 +1,4 @@
+import json
 import geopandas as gpd
 # Input a kml file
 # Sample points
@@ -104,7 +105,7 @@ def get_best_path_exhaustive(points):
                 points,
                 dir
             ))
-            d = np.sum(np.linalg.norm(p[:1] - p[:-1], axis=-1))
+            d = np.sum(np.linalg.norm(p[1:] - p[:-1], axis=-1))
             if d < best:
                 best = d
                 best_path = p
