@@ -3,6 +3,7 @@ import ast, numpy as np, matplotlib.pyplot as plt
 from shapely.geometry import Point, Polygon, MultiPolygon
 from matplotlib.collections import LineCollection
 import contextily as ctx
+import tqdm
 
 
 # DATA = """
@@ -276,7 +277,7 @@ def get_path(point_id, points, v = np.zeros(2)):
         ])
     return points
 
-def get_best_path_exhaustive(points):
+def get_best_path_exhaustive(points, progress=tqdm):
     best = np.inf
     best_path = []
     dirs = np.array([
@@ -285,7 +286,7 @@ def get_best_path_exhaustive(points):
         [1, 0],
         [-1, 0],
     ])
-    for start in range(len(points)):
+    for start in progress.tqdm(range(len(points)), "Finding Optimal Flight Path (Exact)"):
         print(start / len(points))
         for dir in dirs:
             p = np.array(get_path(
@@ -299,13 +300,13 @@ def get_best_path_exhaustive(points):
                 best_path = p
     return best_path
 
-def get_best_path_random(n_tests, points):
+def get_best_path_random(n_tests, points, progress=tqdm):
     best = np.inf
     best_path = []
     if n_tests >= len(points):
         print("large n, shifting to exhaustive")
-        return get_best_path_exhaustive(points)
-    for _ in range(n_tests):
+        return get_best_path_exhaustive(points, progress=progress)
+    for _ in progress.tqdm(range(n_tests), "Finding Optimal Flight Path (Approximate)"):
         start = np.random.randint(0, len(points))
         p = np.array(get_path(
             start,
@@ -378,7 +379,7 @@ def show_results(polygons, points, path, plot=None):
     ax.set_axis_off()
     plt.show()
 
-def get_paths_for_data(data_str, seperate_paths=True):
+def get_paths_for_data(data_str, seperate_paths=True, progress=tqdm):
     geo = extract_geometry(data_str)
     points = []
     for pt in geo['pts']:
@@ -386,24 +387,24 @@ def get_paths_for_data(data_str, seperate_paths=True):
 
     paths = []
     if len(points) > 0:
-        paths.append(get_best_path_exhaustive(np.array(points)))
+        paths.append(get_best_path_random(500, np.array(points)))
 
     if seperate_paths:
-        for p in geo['poly']:
+        for p in progress.tqdm(geo['poly'], "Unpacking polygons"):
             pts = points_from_poly(p, RESOLUTION)
             points += pts
-            paths.append(get_best_path_exhaustive(np.array(pts)))
+            paths.append(get_best_path_random(500, np.array(pts), progress=progress))
         points = np.array(points)
 
-        path = np.array(connect_paths(paths))
+        path = np.array(connect_paths(paths, progress=progress))
         return (geo['poly'], np.array(points).reshape((-1, 2)), np.array(paths).reshape((-1, 2)))
     else:
         geo['poly'] = [MultiPolygon(geo['poly'])]
-        for p in geo['poly']:
+        for p in progress.tqdm(geo['poly'], "Unpacking polygons"):
             pts = points_from_poly(p, RESOLUTION)
             points += pts
         points = np.array(points)
-        paths = get_best_path_exhaustive(points)
+        paths = get_best_path_random(500, points, progress=progress)
         return (geo['poly'], np.array(points).reshape((-1, 2)), np.array(paths).reshape((-1, 2)))
 
 if __name__ == "__main__":

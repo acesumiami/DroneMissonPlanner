@@ -8,17 +8,19 @@ html_code = """
 <div id="map" style="height:500px;"></div>
 """
 
-def process_json(data):
-    yield (None, gr.update(interactive=False), False, [])
+def process_json(data, progress=gr.Progress()):
+    progress(0, desc="Starting")
+    # yield (None, gr.update(interactive=False), False, [])
     print("recieved json", data)
 
-    poly, points, path = get_paths_for_data(data, False)
+    poly, points, path = get_paths_for_data(data, False, progress=progress)
     fig, ax = plt.subplots(figsize=(10, 10))
     fig.tight_layout()
     show_results(poly, points, path, (fig, ax))
 
     print("finished")
-    yield (fig, gr.update(interactive=True), True, path)
+    # yield (fig, gr.update(interactive=True), True, path)
+    return (fig, gr.update(interactive=True), True, path)
 
 def export_mission(mission):
     mission = Mission(mission, 40, 2, 60)
@@ -44,11 +46,28 @@ with gr.Blocks() as demo:
     export_button = gr.Button("Export", interactive=False)
 
     # JS sets value into hidden
-    hidden.change(lambda x: (yield from process_json(x)), hidden, [output, export_button, finished_state, mission_state])
+    hidden.change(lambda x: process_json(x), hidden, [output, export_button, finished_state, mission_state])
     export_button.click(export_mission, mission_state, gr.File(label="Download JSON"))
 
 demo.queue()
-demo.launch(js="""
+demo.launch(share=True, js="""
+x = async () => {
+// Wait until #map exists
+function waitForElement(id) {
+    return new Promise(resolve => {
+        const interval = setInterval(() => {
+            const el = document.getElementById(id);
+            if (el) {
+                clearInterval(interval);
+                resolve(el);
+            }
+        }, 100);
+    });
+}
+            
+const mapElement = await waitForElement("map");
+
+
 /* 1. Load Leaflet CSS */
 var leafletCss = document.createElement('link');
 leafletCss.rel = 'stylesheet';
@@ -76,11 +95,20 @@ leafletJs.onload = function() {
             var map = L.map("map",{
                 zoomControl: true,       // removes zoom buttons
                 attributionControl: false // removes attribution text
-            }).setView([25.731499, -80.162699], 26);
+            }).setView([25.731499, -80.162699], 18);
 
             L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-                attribution: "© OpenStreetMap contributors"
+                attribution: "© OpenStreetMap contributors",
+                maxZoom: 22,       // The maximum zoom the layer will allow
+                maxNativeZoom: 19  // The magic trick (see below)
             }).addTo(map);
+
+            var satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri',
+                maxZoom: 22,       // The maximum zoom the layer will allow
+                maxNativeZoom: 19  // The magic trick (see below)
+            });
+            satellite.addTo(map);
 
             var drawnItems = new L.FeatureGroup();
             map.addLayer(drawnItems);
@@ -130,4 +158,6 @@ leafletJs.onload = function() {
     document.head.appendChild(style);
 };
 document.body.appendChild(leafletJs);
+}
+x()
 """)
