@@ -1,3 +1,9 @@
 notebook
 glob2
 gradio
+matplotlib
+contextily
+fiona
+folium
+shapely
+pyproj
