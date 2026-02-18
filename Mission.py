@@ -2,9 +2,10 @@ from Commands import *
 
 def mission_preamble():
     return [
-        GimballSet(0, -90),
+        ChangeSpeed(SPEED_TYPE.SPEED_TYPE_GROUNDSPEED, 15),
+        # GimballSet(0, -90),
         CamSetMode(),
-        CamFocusINF()
+        # CamFocusINF()
     ]
 
 class Mission(object):

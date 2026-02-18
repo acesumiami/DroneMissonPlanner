@@ -38,7 +38,8 @@ class MissionWriter(object):
                     "polygons": [],
                     "version": 2
                 },
-                "groundStation": "ACES Astro Planning",
+                # "groundStation": "ACES Astro Planning",
+                "groundStation": "QGroundControl",
                 "mission": {},
                 "rallyPoints": {
                     "points": [],
@@ -54,7 +55,7 @@ class MissionWriter(object):
 
         plan = []
         for idx, item in enumerate(items):
-            (cmd_code, params) = item.info(mission_params) 
+            (cmd_code, frame, params) = item.info(mission_params) 
             plan.append(
                 {
                     "AMSLAltAboveTerrain": None,
@@ -63,7 +64,7 @@ class MissionWriter(object):
                     "autoContinue": True,
                     "command": cmd_code,
                     "doJumpId": idx + 1,
-                    "frame": 0, # Global to MSL
+                    "frame": frame, # Global to MSL
                     "params": params,
                     "type": "SimpleItem"
                 }
