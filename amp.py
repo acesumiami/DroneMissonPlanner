@@ -1,11 +1,15 @@
 import gradio as gr
 from amp_background import *
+from Mission import Mission
+from MissionWriter import MissionWriter
+import tempfile, json
 
 html_code = """
 <div id="map" style="height:500px;"></div>
 """
 
 def process_json(data):
+    yield (None, gr.update(interactive=False), False, [])
     print("recieved json", data)
 
     poly, points, path = get_paths_for_data(data, False)
@@ -13,19 +17,35 @@ def process_json(data):
     fig.tight_layout()
     show_results(poly, points, path, (fig, ax))
 
-    return fig
+    print("finished")
+    yield (fig, gr.update(interactive=True), True, path)
+
+def export_mission(mission):
+    mission = Mission(mission, 40, 2, 60)
+    writer = MissionWriter()
+    res = writer.compile(mission)
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".plan", mode="w")
+    json.dump(res, tmp, indent=2)
+    tmp.close()
+
+    return tmp.name  # Return file path
+
 
 with gr.Blocks() as demo:
-
+    finished_state = gr.State(False)
+    mission_state = gr.State([])
     # Map container
     map_html = gr.HTML(html_code)
 
     # Hidden textbox to receive JS data
     hidden = gr.Textbox(visible=True, elem_id="data_dest")
     output = gr.Plot()
+    export_button = gr.Button("Export", interactive=False)
 
     # JS sets value into hidden
-    hidden.change(lambda x: process_json(x), hidden, output)
+    hidden.change(lambda x: (yield from process_json(x)), hidden, [output, export_button, finished_state, mission_state])
+    export_button.click(export_mission, mission_state, gr.File(label="Download JSON"))
 
 demo.queue()
 demo.launch(js="""

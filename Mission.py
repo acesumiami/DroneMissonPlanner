@@ -1,5 +1,4 @@
 from Commands import *
-import math
 
 def mission_preamble():
     return [
@@ -19,12 +18,15 @@ class Mission(object):
         items = mission_preamble()
         for wp in self.wps:
             items += self.wp_items(wp)
+        # for idx, item in enumerate(items):
+        #     print(idx, type(item))
+        return items
 
     def wp_items(self, wp):
-        coord = GPSCoordinate(wp[0], wp[1], alt=self.alt)
+        coord = GPSCoordinate(wp[1], wp[0], alt=self.alt)
         return [
             Nav2Point(coords=coord),
             CamStartSeq(self.cam_rate, self.n_photos + 1), # +1 because why not? Could be fun to see if it actually counts okay
-            NavNLoiter(int(math.round(self.n_photos / self.cam_rate)), coords=coord),
+            NavNLoiter(int(round(self.n_photos / self.cam_rate)), coords=coord),
             CamStopSeq()
         ]

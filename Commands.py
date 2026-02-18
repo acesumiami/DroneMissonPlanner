@@ -1,4 +1,9 @@
-from enum import Enum
+from enum import IntEnum
+
+# https://mavlink.io/en/messages/common.html#MAV_BOOL
+class MAV_BOOL(IntEnum):
+    MAV_BOOL_FALSE = 0
+    MAV_BOOL_TRUE = 1
 
 class GPSCoordinate(object):
     def __init__(self, lat, lon, alt=None):
@@ -20,7 +25,7 @@ class Command(object):
     def info(self, mission_info):
         params = self.params(mission_info)
         if len(params) < 7:
-            params += [0] * (len(params) - 7)
+            params += [0] * (7 - len(params))
         assert(len(params) == 7)
 
         return [
@@ -41,7 +46,7 @@ class Nav2Point(Command):
             self.hold_time,
             self.acceptance_radius,
             0, # Pass radius
-            "NaN"
+            None,
         ] + self.coords.get_params(mission_info)
     
 # https://mavlink.io/en/messages/common.html#MAV_CMD_NAV_LOITER_TIME
@@ -54,13 +59,13 @@ class NavNLoiter(Command):
     def params(self, mission_info):
         return [
             self.time,
-            False, 
+            MAV_BOOL.MAV_BOOL_FALSE, 
             0,
             0,
         ] + self.coords.get_params(mission_info)
     
 # https://mavlink.io/en/messages/common.html#CAMERA_MODE
-class CAMERA_MODE(Enum):
+class CAMERA_MODE(IntEnum):
     IMAGE = 0
     VIDEO = 1
     SURVEY = 2
@@ -129,7 +134,6 @@ class CamStartSeq(Command):
         return [
             0,
             self.interval,
-            self.max_images,
             self.imgCount
         ]
 
@@ -140,3 +144,22 @@ class CamStopSeq(Command):
 
     def params(self, mission_info):
         return [0]
+    
+
+class StorageFlag(IntEnum):
+    STORAGE_USAGE_FLAG_SET = 1
+    STORAGE_USAGE_FLAG_PHOTO = 2
+    STORAGE_USAGE_FLAG_VIDEO = 4
+    STORAGE_USAGE_FLAG_LOGS = 8
+
+class CamSetStorage(Command):
+    def __init__(self, storage_loc, usage: StorageFlag):
+        super().__init__(533)
+        self.storage = storage_loc
+        self.usage = usage
+
+    def params(self, mission_info):
+        return [
+            self.storage,
+            self.usage
+        ]

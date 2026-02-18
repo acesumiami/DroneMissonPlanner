@@ -1,0 +1,160 @@
+{
+    "fileType": "Plan",
+    "geoFence": 
+    {
+        "circles": 
+        [
+        ],
+        "polygons": 
+        [
+        ],
+        "version": 2
+    },
+    "groundStation": "ACES Astro Planning",
+    "mission": 
+    {
+        "cruiseSpeed": 15,
+        "hoverSpeed": 15,
+        "firmwareType": 12,
+        "globalPlanAltitudeMode": 1,
+        "plannedHomePosition": 
+        [
+            25.731907796176873,
+            -80.1629181,
+            4
+        ],
+        "vehicleType": 2,
+        "version": 2,
+        "items": 
+        [
+            {
+                "AMSLAltAboveTerrain": null,
+                "Altitude": 60,
+                "AltitudeMode": 0,
+                "autoContinue": true,
+                "command": 0,
+                "doJumpId": 1,
+                "frame": 0,
+                "params": 
+                [
+                    0,
+                    -90,
+                    5,
+                    5,
+                    24,
+                    0,
+                    0
+                ],
+                "type": "SimpleItem"
+            },
+            {
+                "AMSLAltAboveTerrain": null,
+                "Altitude": 60,
+                "AltitudeMode": 0,
+                "autoContinue": true,
+                "command": 1,
+                "doJumpId": 2,
+                "frame": 0,
+                "params": 
+                [
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+                ],
+                "type": "SimpleItem"
+            },
+            {
+                "AMSLAltAboveTerrain": null,
+                "Altitude": 60,
+                "AltitudeMode": 0,
+                "autoContinue": true,
+                "command": 2,
+                "doJumpId": 3,
+                "frame": 0,
+                "params": 
+                [
+                    2,
+                    100,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+                ],
+                "type": "SimpleItem"
+            },
+            {
+                "AMSLAltAboveTerrain": null,
+                "Altitude": 60,
+                "AltitudeMode": 0,
+                "autoContinue": true,
+                "command": 3,
+                "doJumpId": 4,
+                "frame": 0,
+                "params": 
+                [
+                    0,
+                    0.25,
+                    0,
+                    null,
+                    -80.16303555555555,
+                    25.731260555555558,
+                    60
+                ],
+                "type": "SimpleItem"
+            },
+            {
+                "AMSLAltAboveTerrain": null,
+                "Altitude": 60,
+                "AltitudeMode": 0,
+                "autoContinue": true,
+                "command": 4,
+                "doJumpId": 5,
+                "frame": 0,
+                "params": 
+                [
+                    0,
+                    0.5,
+                    61,
+                    0,
+                    0,
+                    0,
+                    0
+                ],
+                "type": "SimpleItem"
+            },
+            {
+                "AMSLAltAboveTerrain": null,
+                "Altitude": 60,
+                "AltitudeMode": 0,
+                "autoContinue": true,
+                "command": 5,
+                "doJumpId": 6,
+                "frame": 0,
+                "params": 
+                [
+                    120,
+                    false,
+                    0,
+                    0,
+                    -80.16303555555555,
+                    25.731260555555558,
+                    60
+                ],
+                "type": "SimpleItem"
+            }
+        ]
+    },
+    "rallyPoints": 
+    {
+        "points": 
+        [
+        ],
+        "version": 2
+    },
+    "version": 1
+}

@@ -225,7 +225,9 @@ def extract_geometry(string_json):
             print(f"Unknown type: {type}")
     return {"poly": polygons, "pts": points }
 
-def points_from_poly(poly, num_points):
+RESOLUTION = 0.00022
+
+def points_from_poly(poly, resolution):
     """
     Uniformly sample points inside a polygon or multipolygon.
     """
@@ -233,9 +235,14 @@ def points_from_poly(poly, num_points):
     
     minx, miny, maxx, maxy = poly.bounds
 
-    n = int(np.sqrt(num_points))
+    nx = max(4, int(np.ceil((maxx - minx) / resolution)))
+    ny = max(4, int(np.ceil((maxx - minx) / resolution)))
+    print(nx, ny)
+    # nx = 10
+    # ny = 10
 
-    X, Y = np.meshgrid(np.linspace(minx, maxx, n), np.linspace(miny, maxy, n))
+    X, Y = np.meshgrid(np.linspace(minx, maxx, nx), np.linspace(miny, maxy, ny))
+    print("LEN", len(X.flatten()))
     for (x, y) in zip(X.flatten(), Y.flatten()):
         p = Point(x, y)
         if poly.contains(p):
@@ -361,11 +368,13 @@ def show_results(polygons, points, path, plot=None):
     lc.set_array(np.linspace(0, 1, len(p)))
     ax.add_collection(lc)
 
+    ax.set_xlabel("Longitude (°)")
+    ax.set_ylabel("Latitude (°)")
+
     # Add background map
     ctx.add_basemap(ax)
 
     # Set title and axis
-    ax.set_title("Uniformly Sampled Points in Polygons with Background")
     ax.set_axis_off()
     plt.show()
 
@@ -381,7 +390,7 @@ def get_paths_for_data(data_str, seperate_paths=True):
 
     if seperate_paths:
         for p in geo['poly']:
-            pts = points_from_poly(p, 100)
+            pts = points_from_poly(p, RESOLUTION)
             points += pts
             paths.append(get_best_path_exhaustive(np.array(pts)))
         points = np.array(points)
@@ -389,8 +398,9 @@ def get_paths_for_data(data_str, seperate_paths=True):
         path = np.array(connect_paths(paths))
         return (geo['poly'], np.array(points).reshape((-1, 2)), np.array(paths).reshape((-1, 2)))
     else:
+        geo['poly'] = [MultiPolygon(geo['poly'])]
         for p in geo['poly']:
-            pts = points_from_poly(p, 100)
+            pts = points_from_poly(p, RESOLUTION)
             points += pts
         points = np.array(points)
         paths = get_best_path_exhaustive(points)
