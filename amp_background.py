@@ -228,6 +228,14 @@ def extract_geometry(string_json):
 
 RESOLUTION = 0.00022
 
+def generate_points(minx, miny, maxx, maxy, resolution):
+    nx = max(4, int(np.ceil((maxx - minx) / resolution)))
+    ny = max(4, int(np.ceil((maxx - minx) / resolution)))
+
+    Y, X = np.meshgrid(np.linspace(miny, maxy, ny), np.linspace(minx, maxx, nx))
+    return np.dstack([X, Y])
+
+
 def points_from_poly(poly, resolution):
     """
     Uniformly sample points inside a polygon or multipolygon.
@@ -242,7 +250,7 @@ def points_from_poly(poly, resolution):
     # nx = 10
     # ny = 10
 
-    X, Y = np.meshgrid(np.linspace(minx, maxx, nx), np.linspace(miny, maxy, ny))
+    Y, X = np.meshgrid(np.linspace(miny, maxy, ny), np.linspace(minx, maxx, nx))
     print("LEN", len(X.flatten()))
     for (x, y) in zip(X.flatten(), Y.flatten()):
         p = Point(x, y)
@@ -250,6 +258,15 @@ def points_from_poly(poly, resolution):
             points.append([x, y])
 
     return points
+
+def get_poly_path(poly, resolution, progress):
+    points = generate_points(*poly.bounds, resolution).reshape((-1, 2))
+
+    points = np.array(
+        [row[::(1 if idx % 2 == 0 else -1)] for idx, row in progress.tqdm(enumerate(points), "Snaking path")]
+    )
+    return np.array([point for point in progress.tqdm(points, "Fitting points to shape") if poly.contains(Point(point[0], point[1]))])
+
 
 def get_path(point_id, points, v = np.zeros(2)):
     point = points[point_id]
@@ -379,9 +396,10 @@ def show_results(polygons, points, path, plot=None):
     ax.set_axis_off()
     plt.show()
 
-def get_paths_for_data(data_str, seperate_paths=True, progress=tqdm):
+def get_paths_for_data(data_str, seperate_paths=False, progress=tqdm):
     geo = extract_geometry(data_str)
     points = []
+    print("Getting paths")
     for pt in geo['pts']:
         points.append(pt['coordinates'])
 
@@ -391,20 +409,17 @@ def get_paths_for_data(data_str, seperate_paths=True, progress=tqdm):
 
     if seperate_paths:
         for p in progress.tqdm(geo['poly'], "Unpacking polygons"):
-            pts = points_from_poly(p, RESOLUTION)
-            points += pts
-            paths.append(get_best_path_random(500, np.array(pts), progress=progress))
+            pts = get_poly_path(p, RESOLUTION, progress)
+            points.extend(pts)
+            paths.append(pts)
         points = np.array(points)
 
-        path = np.array(connect_paths(paths, progress=progress))
+        paths = np.array(connect_paths(paths))
         return (geo['poly'], np.array(points).reshape((-1, 2)), np.array(paths).reshape((-1, 2)))
     else:
         geo['poly'] = [MultiPolygon(geo['poly'])]
-        for p in progress.tqdm(geo['poly'], "Unpacking polygons"):
-            pts = points_from_poly(p, RESOLUTION)
-            points += pts
-        points = np.array(points)
-        paths = get_best_path_random(500, points, progress=progress)
+        points = get_poly_path(geo['poly'][0], RESOLUTION, progress)
+        paths = points
         return (geo['poly'], np.array(points).reshape((-1, 2)), np.array(paths).reshape((-1, 2)))
 
 if __name__ == "__main__":

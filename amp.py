@@ -13,7 +13,7 @@ def process_json(data, progress=gr.Progress()):
     # yield (None, gr.update(interactive=False), False, [])
     print("recieved json", data)
 
-    poly, points, path = get_paths_for_data(data, False, progress=progress)
+    poly, points, path = get_paths_for_data(data, True, progress=progress)
     fig, ax = plt.subplots(figsize=(10, 10))
     fig.tight_layout()
     show_results(poly, points, path, (fig, ax))
