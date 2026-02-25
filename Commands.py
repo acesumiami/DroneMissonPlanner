@@ -75,16 +75,18 @@ class Nav2Point(NavigationCommand):
             self.hold_time,
             self.acceptance_radius,
             0, # Pass radius
-            self.yaw,
+            self.yaw if self.yaw is None else (self.yaw + 1) * 180,
         ] + self.coords.get_params(mission_info)
     
 # https://mavlink.io/en/messages/common.html#MAV_CMD_NAV_LOITER_TIME
 class NavNLoiter(NavigationCommand):
-    def __init__(self, time, coords, loiter_radius=0):
+    def __init__(self, time, coords, loiter_radius=0, direction=None):
         super().__init__(19)
         self.time = time
         self.coords = coords
         self.loiter_radius = loiter_radius
+        if not direction is None:
+            print("DIRECTION FOR NAVNLOITER IS SET BUT NOT USED")
 
     def params(self, mission_info):
         return [

@@ -5,139 +5,6 @@ from matplotlib.collections import LineCollection
 import contextily as ctx
 import tqdm
 
-
-# DATA = """
-# {
-#   "type": "FeatureCollection",
-#   "features": [
-#     {
-#       "type": "Feature",
-#       "properties": {},
-#       "geometry": {
-#         "type": "Polygon",
-#         "coordinates": [
-#           [
-#             [
-#               -80.163079,
-#               25.731
-#             ],
-#             [
-#               -80.163079,
-#               25.731546
-#             ],
-#             [
-#               -80.162569,
-#               25.731546
-#             ],
-#             [
-#               -80.162569,
-#               25.731
-#             ],
-#             [
-#               -80.163079,
-#               25.731
-#             ]
-#           ]
-#         ]
-#       }
-#     },
-#     {
-#       "type": "Feature",
-#       "properties": {},
-#       "geometry": {
-#         "type": "Polygon",
-#         "coordinates": [
-#           [
-#             [
-#               -80.168438,
-#               25.734325
-#             ],
-#             [
-#               -80.168438,
-#               25.735929
-#             ],
-#             [
-#               -80.166421,
-#               25.735929
-#             ],
-#             [
-#               -80.166421,
-#               25.734325
-#             ],
-#             [
-#               -80.168438,
-#               25.734325
-#             ]
-#           ]
-#         ]
-#       }
-#     },
-#     {
-#       "type": "Feature",
-#       "properties": {},
-#       "geometry": {
-#         "type": "Polygon",
-#         "coordinates": [
-#           [
-#             [
-#               -80.172279,
-#               25.729956
-#             ],
-#             [
-#               -80.172279,
-#               25.731831
-#             ],
-#             [
-#               -80.16906,
-#               25.731831
-#             ],
-#             [
-#               -80.16906,
-#               25.729956
-#             ],
-#             [
-#               -80.172279,
-#               25.729956
-#             ]
-#           ]
-#         ]
-#       }
-#     },
-#     {
-#       "type": "Feature",
-#       "properties": {},
-#       "geometry": {
-#         "type": "Polygon",
-#         "coordinates": [
-#           [
-#             [
-#               -80.156529,
-#               25.734382
-#             ],
-#             [
-#               -80.156529,
-#               25.73589
-#             ],
-#             [
-#               -80.154383,
-#               25.73589
-#             ],
-#             [
-#               -80.154383,
-#               25.734382
-#             ],
-#             [
-#               -80.156529,
-#               25.734382
-#             ]
-#           ]
-#         ]
-#       }
-#     }
-#   ]
-# }
-# """
-
 DATA = """
 {
   "type": "FeatureCollection",
@@ -246,12 +113,10 @@ def points_from_poly(poly, resolution):
 
     nx = max(4, int(np.ceil((maxx - minx) / resolution)))
     ny = max(4, int(np.ceil((maxx - minx) / resolution)))
-    print(nx, ny)
     # nx = 10
     # ny = 10
 
     Y, X = np.meshgrid(np.linspace(miny, maxy, ny), np.linspace(minx, maxx, nx))
-    print("LEN", len(X.flatten()))
     for (x, y) in zip(X.flatten(), Y.flatten()):
         p = Point(x, y)
         if poly.contains(p):
@@ -260,12 +125,17 @@ def points_from_poly(poly, resolution):
     return points
 
 def get_poly_path(poly, resolution, progress):
-    points = generate_points(*poly.bounds, resolution).reshape((-1, 2))
+    points = generate_points(*poly.bounds, resolution)
 
-    points = np.array(
-        [row[::(1 if idx % 2 == 0 else -1)] for idx, row in progress.tqdm(enumerate(points), "Snaking path")]
-    )
-    return np.array([point for point in progress.tqdm(points, "Fitting points to shape") if poly.contains(Point(point[0], point[1]))])
+    points[::2] = points[::2, ::-1, :]
+    directions = np.ones(points.shape[:2])
+    directions[::2] *= -1
+    directions = directions.flatten()
+    points = points.reshape((-1, 2))
+
+    mask = np.array([poly.contains(Point(point[0], point[1])) for point in progress.tqdm(points, "Fitting points to shape")])
+
+    return points[mask], directions[mask].flatten()
 
 
 def get_path(point_id, points, v = np.zeros(2)):
@@ -304,7 +174,6 @@ def get_best_path_exhaustive(points, progress=tqdm):
         [-1, 0],
     ])
     for start in progress.tqdm(range(len(points)), "Finding Optimal Flight Path (Exact)"):
-        print(start / len(points))
         for dir in dirs:
             p = np.array(get_path(
                 start,
@@ -339,7 +208,6 @@ def connect_paths(paths):
     best_score = np.inf
     best = []
     for i in range(len(paths)):
-        print((i + 1) / len(paths))
         last = paths[i]
         path = list(last)
         remaining = list(paths[:i]) + list(paths[i + 1:])
@@ -361,28 +229,28 @@ def connect_paths(paths):
     return best
 
 # import geopandas as gdf
-def show_results(polygons, points, path, plot=None):
-    print(dir(ctx.providers))
+def show_results(polygons, points, path, directions, plot=None, progress=tqdm):
+    # print(dir(ctx.providers))
 
     from shapely.ops import transform
     from pyproj import Transformer
 
     transformer = Transformer.from_crs("epsg:4326", "epsg:3857", always_xy=True)
-    sampled_points_web = np.array([transformer.transform(x, y) for x, y in points])
-    path_web = np.array([transformer.transform(x, y) for x, y in path.reshape((-1, 2))])
+    sampled_points_web = np.array([transformer.transform(x, y) for x, y in progress.tqdm(points, "Transforming Points")])
+    path_web = np.array([transformer.transform(x, y) for x, y in progress.tqdm(path.reshape((-1, 2)), "Transforming Path")])
 
     # Create figure
     if plot is None:
         fig, ax = plt.subplots(figsize=(10, 10))
     else:
         fig, ax = plot
-    ax.scatter(sampled_points_web[:, 0], sampled_points_web[:, 1], color="red", s=10)
+    ax.scatter(sampled_points_web[:, 0], sampled_points_web[:, 1], c=directions, s=20, cmap='jet', zorder=10)
 
     # Create LineCollection for path with gradient
     p = path_web.reshape((-1, 1, 2))
     ax.set_aspect('equal')
     segments = np.concatenate([p[:-1], p[1:]], axis=1)
-    lc = LineCollection(segments, cmap='magma', linewidth=2)
+    lc = LineCollection(segments, cmap='magma', linewidth=2, zorder=1)
     lc.set_array(np.linspace(0, 1, len(p)))
     ax.add_collection(lc)
 
@@ -399,7 +267,7 @@ def show_results(polygons, points, path, plot=None):
 def get_paths_for_data(data_str, seperate_paths=False, progress=tqdm):
     geo = extract_geometry(data_str)
     points = []
-    print("Getting paths")
+    directions = []
     for pt in geo['pts']:
         points.append(pt['coordinates'])
 
@@ -409,18 +277,19 @@ def get_paths_for_data(data_str, seperate_paths=False, progress=tqdm):
 
     if seperate_paths:
         for p in progress.tqdm(geo['poly'], "Unpacking polygons"):
-            pts = get_poly_path(p, RESOLUTION, progress)
+            pts, dirs = get_poly_path(p, RESOLUTION, progress)
             points.extend(pts)
+            directions.extend(dirs.flatten())
             paths.append(pts)
         points = np.array(points)
 
         paths = np.array(connect_paths(paths))
-        return (geo['poly'], np.array(points).reshape((-1, 2)), np.array(paths).reshape((-1, 2)))
+        return (geo['poly'], np.array(points).reshape((-1, 2)), np.array(paths).reshape((-1, 2)), directions)
     else:
         geo['poly'] = [MultiPolygon(geo['poly'])]
-        points = get_poly_path(geo['poly'][0], RESOLUTION, progress)
+        points, directions = get_poly_path(geo['poly'][0], RESOLUTION, progress)
         paths = points
-        return (geo['poly'], np.array(points).reshape((-1, 2)), np.array(paths).reshape((-1, 2)))
+        return (geo['poly'], np.array(points).reshape((-1, 2)), np.array(paths).reshape((-1, 2)), directions.flatten())
 
 if __name__ == "__main__":
     poly, points, path = get_paths_for_data(DATA, False)

@@ -3,6 +3,7 @@ from amp_background import *
 from Mission import Mission
 from MissionWriter import MissionWriter
 import tempfile, json
+import time
 
 html_code = """
 <div id="map" style="height:500px;"></div>
@@ -10,26 +11,32 @@ html_code = """
 
 def process_json(data, progress=gr.Progress()):
     progress(0, desc="Starting")
-    # yield (None, gr.update(interactive=False), False, [])
-    print("recieved json", data)
 
-    poly, points, path = get_paths_for_data(data, True, progress=progress)
+    poly, points, path, directions = get_paths_for_data(data, True, progress=progress)
     fig, ax = plt.subplots(figsize=(10, 10))
     fig.tight_layout()
-    show_results(poly, points, path, (fig, ax))
+    show_results(poly, points, path, directions, (fig, ax), progress=progress)
 
-    print("finished")
     # yield (fig, gr.update(interactive=True), True, path)
-    return (fig, gr.update(interactive=True), True, path)
+    t = time.localtime()
+    print(
+        f"Finish creating plot for mission with {len(points)} points. {t.tm_mon}-{t.tm_mday}-{t.tm_hour}:{t.tm_min}:{t.tm_sec}"
+    )
+    return (fig, gr.update(interactive=True), True, (path, directions))
 
-def export_mission(mission):
-    mission = Mission(mission, 40, 2, 60)
+def export_mission(params):
+    mission, direction = params
+    mission = Mission(mission, 40, 1, 30, directions=direction)
     writer = MissionWriter()
     res = writer.compile(mission)
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".plan", mode="w")
     json.dump(res, tmp, indent=2)
     tmp.close()
+    t = time.localtime()
+    print(
+        f"Exported mission with {len(params[0])} points. {t.tm_mon}-{t.tm_mday}-{t.tm_hour}:{t.tm_min}:{t.tm_sec}"
+    )
 
     return tmp.name  # Return file path
 
@@ -41,7 +48,7 @@ with gr.Blocks() as demo:
     map_html = gr.HTML(html_code)
 
     # Hidden textbox to receive JS data
-    hidden = gr.Textbox(visible=True, elem_id="data_dest")
+    hidden = gr.Textbox(label="Shape Summary", visible=True, elem_id="data_dest")
     output = gr.Plot()
     export_button = gr.Button("Export", interactive=False)
 
