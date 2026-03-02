@@ -1,7 +1,8 @@
 import ast, numpy as np, matplotlib.pyplot as plt
+from shapely.geometry import Point, Polygon, MultiPolygon #Geodesic calculations
 # Graphing
-from shapely.geometry import Point, Polygon, MultiPolygon
 from matplotlib.collections import LineCollection
+from geographiclib.geodesic import Geodesic
 import contextily as ctx
 import tqdm
 
@@ -95,12 +96,28 @@ def extract_geometry(string_json):
 
 RESOLUTION = 0.00022
 
-def generate_points(minx, miny, maxx, maxy, resolution):
-    nx = max(4, int(np.ceil((maxx - minx) / resolution)))
-    ny = max(4, int(np.ceil((maxx - minx) / resolution)))
+def generate_points(min_lon, min_lat, max_lon, max_lat, resolution):
+    #Projection type
+    geod = Geodesic.WGS84
+    points = []
 
-    Y, X = np.meshgrid(np.linspace(miny, maxy, ny), np.linspace(minx, maxx, nx))
-    return np.dstack([X, Y])
+    # Start at southwest corner
+    lat = min_lat
+
+    while lat <= max_lat:
+        lon = min_lon
+        while lon <= max_lon:
+            points.append((lat, lon))
+
+            # Step east by resolution meters 
+            east = geod.Direct(lat, lon, 90, resolution)
+            lon = east["lon2"]
+
+        # Step north by resolution meters 
+        north = geod.Direct(lat, min_lon, 0, resolution)
+        lat = north["lat2"]
+
+    return points
 
 
 def points_from_poly(poly, resolution):
