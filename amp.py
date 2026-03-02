@@ -9,10 +9,10 @@ html_code = """
 <div id="map" style="height:500px;"></div>
 """
 
-def process_json(data, progress=gr.Progress()):
+def process_json(data, alt, fov, v_res, h_res, progress=gr.Progress()):
     progress(0, desc="Starting")
 
-    poly, points, path, directions = get_paths_for_data(data, True, progress=progress)
+    poly, points, path, directions = get_paths_for_data(data, altitude=alt, fov=fov, v_res=v_res, h_res=h_res, seperate_paths=True, progress=progress)
     fig, ax = plt.subplots(figsize=(10, 10))
     fig.tight_layout()
     show_results(poly, points, path, directions, (fig, ax), progress=progress)
@@ -47,13 +47,23 @@ with gr.Blocks() as demo:
     # Map container
     map_html = gr.HTML(html_code)
 
+    with gr.Row():
+        alt = gr.Number(value=60, label="Altitude (m)", visible=True, interactive=True)
+        fov = gr.Number(value=53.3, label="FOV (°)", visible=True, interactive=True)
+        v_res = gr.Number(value=5460, label="Vertical Resolution", visible=True, interactive=True)
+        h_res = gr.Number(value=8192, label="Horizontal Resolution", visible=True, interactive=True)
     # Hidden textbox to receive JS data
-    hidden = gr.Textbox(label="Shape Summary", visible=True, elem_id="data_dest")
+    hidden = gr.Textbox(label="Shape Summary", visible=True, interactive=False, elem_id="data_dest")
     output = gr.Plot()
     export_button = gr.Button("Export", interactive=False)
 
     # JS sets value into hidden
-    hidden.change(lambda x: process_json(x), hidden, [output, export_button, finished_state, mission_state])
+    # hidden.change(lambda x: process_json(x, alt=alt, fov=fov, v_res=v_res, h_res=h_res), hidden, [output, export_button, finished_state, mission_state])
+    hidden.change(
+        process_json,
+        inputs=[hidden, alt, fov, v_res, h_res],
+        outputs=[output, export_button, finished_state, mission_state]
+    )
     export_button.click(export_mission, mission_state, gr.File(label="Download JSON"))
 
 demo.queue()

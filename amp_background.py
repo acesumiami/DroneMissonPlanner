@@ -297,7 +297,7 @@ def show_results(polygons, points, path, directions, plot=None, progress=tqdm):
     ax.set_axis_off()
     plt.show()
 
-def get_paths_for_data(data_str, seperate_paths=False, progress=tqdm):
+def get_paths_for_data(data_str, altitude=60, fov=53.3, v_res=5460, h_res=8192, seperate_paths=False, progress=tqdm):
     geo = extract_geometry(data_str)
     points = []
     directions = []
@@ -308,7 +308,8 @@ def get_paths_for_data(data_str, seperate_paths=False, progress=tqdm):
     if len(points) > 0:
         paths.append(get_best_path_random(500, np.array(points)))
 
-    spacing = compute_sampling_spacing(60, 53.3, 5460, 8192)
+    print("ALT", altitude)
+    spacing = compute_sampling_spacing(altitude, 53.3, 5460, 8192)
 
     if seperate_paths:
         for p in progress.tqdm(geo['poly'], "Unpacking polygons"):
