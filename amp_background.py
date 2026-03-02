@@ -5,6 +5,8 @@ from matplotlib.collections import LineCollection
 from geographiclib.geodesic import Geodesic
 import contextily as ctx
 import tqdm
+from shapely.ops import transform
+from pyproj import Transformer
 
 DATA = """
 {
@@ -94,30 +96,25 @@ def extract_geometry(string_json):
             print(f"Unknown type: {type}")
     return {"poly": polygons, "pts": points }
 
-RESOLUTION = 0.00022
+RESOLUTION = 5
 
-def generate_points(min_lon, min_lat, max_lon, max_lat, resolution):
-    #Projection type
+def generate_points(min_lon, min_lat, max_lon, max_lat, spacing):
     geod = Geodesic.WGS84
     points = []
 
-    # Start at southwest corner
-    lat = min_lat
+    east = geod.Direct(min_lat, min_lon, 90, spacing[0])
+    dLon = east['lon2'] - min_lon
+    north = geod.Direct(min_lat, min_lon, 0, spacing[1])
+    dLat = north['lat2'] - min_lat
 
-    while lat <= max_lat:
-        lon = min_lon
-        while lon <= max_lon:
-            points.append((lat, lon))
+    NLon = int(np.ceil((max_lon - min_lon) / dLon))
+    NLat = int(np.ceil((max_lat - min_lat) / dLat))
 
-            # Step east by resolution meters 
-            east = geod.Direct(lat, lon, 90, resolution)
-            lon = east["lon2"]
-
-        # Step north by resolution meters 
-        north = geod.Direct(lat, min_lon, 0, resolution)
-        lat = north["lat2"]
-
-    return points
+    lon = np.linspace(min_lon, max_lon, NLon)
+    lat = np.linspace(min_lat, max_lat, NLat)
+    LAT, LON = np.meshgrid(lat, lon)
+    res = np.dstack([LON, LAT])
+    return res
 
 
 def points_from_poly(poly, resolution):
@@ -128,10 +125,11 @@ def points_from_poly(poly, resolution):
     
     minx, miny, maxx, maxy = poly.bounds
 
+    r = generate_points(minx, miny, maxx, maxy, resolution)
+    print(len(r), r)
+
     nx = max(4, int(np.ceil((maxx - minx) / resolution)))
     ny = max(4, int(np.ceil((maxx - minx) / resolution)))
-    # nx = 10
-    # ny = 10
 
     Y, X = np.meshgrid(np.linspace(miny, maxy, ny), np.linspace(minx, maxx, nx))
     for (x, y) in zip(X.flatten(), Y.flatten()):
@@ -141,8 +139,8 @@ def points_from_poly(poly, resolution):
 
     return points
 
-def get_poly_path(poly, resolution, progress):
-    points = generate_points(*poly.bounds, resolution)
+def get_poly_path(poly, spacing, progress):
+    points = generate_points(*poly.bounds, spacing)
 
     points[::2] = points[::2, ::-1, :]
     directions = np.ones(points.shape[:2])
@@ -151,7 +149,6 @@ def get_poly_path(poly, resolution, progress):
     points = points.reshape((-1, 2))
 
     mask = np.array([poly.contains(Point(point[0], point[1])) for point in progress.tqdm(points, "Fitting points to shape")])
-
     return points[mask], directions[mask].flatten()
 
 
@@ -245,13 +242,32 @@ def connect_paths(paths):
             best = path
     return best
 
+"""
+Ocean Sampling Distance
+
+Equivalent to ground sampling distance, but at MSL
+
+Inputs:
+- altitude [meters]
+- fov [°]
+– res_v: vertical resolution dimension [pixels] 
+– res_h: horizontal resolution dimension [pixels]
+- overlap_v: vertical overlap (%)
+- overlap_h: vertical overlap (%)
+"""
+def compute_sampling_spacing(altitude, fov, res_v, res_h, overlap_v=50.0, overlap_h=25.0):
+    if overlap_v > 1:
+        overlap_v /= 100
+    if overlap_h > 1:
+        overlap_h /= 100
+
+    # The dimension of the ocean visible by the camera
+    # i.e. [30m, 20m], so an overlap of 50% would mean a translation of [15m, 10m]
+    view_frustum = np.tan(fov / (2 * 180) * np.pi) * altitude * np.array([res_v, res_h]) / np.linalg.norm([res_v, res_h]) * 2
+    return view_frustum * np.array([overlap_v, overlap_h])
+
 # import geopandas as gdf
 def show_results(polygons, points, path, directions, plot=None, progress=tqdm):
-    # print(dir(ctx.providers))
-
-    from shapely.ops import transform
-    from pyproj import Transformer
-
     transformer = Transformer.from_crs("epsg:4326", "epsg:3857", always_xy=True)
     sampled_points_web = np.array([transformer.transform(x, y) for x, y in progress.tqdm(points, "Transforming Points")])
     path_web = np.array([transformer.transform(x, y) for x, y in progress.tqdm(path.reshape((-1, 2)), "Transforming Path")])
@@ -292,9 +308,11 @@ def get_paths_for_data(data_str, seperate_paths=False, progress=tqdm):
     if len(points) > 0:
         paths.append(get_best_path_random(500, np.array(points)))
 
+    spacing = compute_sampling_spacing(60, 53.3, 5460, 8192)
+
     if seperate_paths:
         for p in progress.tqdm(geo['poly'], "Unpacking polygons"):
-            pts, dirs = get_poly_path(p, RESOLUTION, progress)
+            pts, dirs = get_poly_path(p, spacing, progress)
             points.extend(pts)
             directions.extend(dirs.flatten())
             paths.append(pts)
@@ -304,7 +322,7 @@ def get_paths_for_data(data_str, seperate_paths=False, progress=tqdm):
         return (geo['poly'], np.array(points).reshape((-1, 2)), np.array(paths).reshape((-1, 2)), directions)
     else:
         geo['poly'] = [MultiPolygon(geo['poly'])]
-        points, directions = get_poly_path(geo['poly'][0], RESOLUTION, progress)
+        points, directions = get_poly_path(geo['poly'][0], spacing, progress)
         paths = points
         return (geo['poly'], np.array(points).reshape((-1, 2)), np.array(paths).reshape((-1, 2)), directions.flatten())
 

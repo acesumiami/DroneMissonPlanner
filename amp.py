@@ -26,7 +26,7 @@ def process_json(data, progress=gr.Progress()):
 
 def export_mission(params):
     mission, direction = params
-    mission = Mission(mission, 40, 1, 30, directions=direction)
+    mission = Mission(mission, 40, 2, 30, directions=direction)
     writer = MissionWriter()
     res = writer.compile(mission)
 
