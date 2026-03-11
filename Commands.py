@@ -136,10 +136,17 @@ class GimballSet(Command): # 1001, 1000
             0,
             0
         ]
+    
+class FocusType(IntEnum):
+    CAMERA_SOURCE_DEFAULT = 0#  Default camera source.
+    CAMERA_SOURCE_RGB = 1#  	RGB camera source.
+    CAMERA_SOURCE_IR = 2#   	IR camera source.
+    CAMERA_SOURCE_NDVI = 3# 	NDVI camera source.
+
 # Doesn't work on astro, but look into camera control??
 # https://mavlink.io/en/messages/common.html#MAV_CMD_SET_CAMERA_FOCUS
 class CamFocusSet(MissionCommand):
-    def __init__(self, focus_type, focus_value):
+    def __init__(self, focus_type: FocusType, focus_value):
         super().__init__(532)
         self.focus_type = focus_type
         self.focus_value = focus_value
@@ -236,11 +243,13 @@ class StorageFlag(IntEnum):
     STORAGE_USAGE_FLAG_VIDEO = 4
     STORAGE_USAGE_FLAG_LOGS = 8
 
+# Does not work on astro
 class CamSetStorage(MissionCommand):
     def __init__(self, storage_loc, usage: StorageFlag):
         super().__init__(533)
         self.storage = storage_loc
         self.usage = usage
+        print("USING CAM SET STORAGE, WHICH DOES NOT WORK ON ASTRO!")
 
     def params(self, mission_info):
         return [

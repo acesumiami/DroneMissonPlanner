@@ -107,11 +107,11 @@ def generate_points(min_lon, min_lat, max_lon, max_lat, spacing):
     north = geod.Direct(min_lat, min_lon, 0, spacing[1])
     dLat = north['lat2'] - min_lat
 
-    NLon = int(np.ceil((max_lon - min_lon) / dLon))
-    NLat = int(np.ceil((max_lat - min_lat) / dLat))
+    NLon = max(int(np.ceil((max_lon - min_lon) / dLon)), 3)
+    NLat = max(int(np.ceil((max_lat - min_lat) / dLat)), 3)
 
-    lon = np.linspace(min_lon, max_lon, NLon)
-    lat = np.linspace(min_lat, max_lat, NLat)
+    lon = np.linspace(min_lon + 1e-8, max_lon - 1e-8, NLon)
+    lat = np.linspace(min_lat + 1e-8, max_lat - 1e-8, NLat)
     LAT, LON = np.meshgrid(lat, lon)
     res = np.dstack([LON, LAT])
     return res
@@ -126,7 +126,6 @@ def points_from_poly(poly, resolution):
     minx, miny, maxx, maxy = poly.bounds
 
     r = generate_points(minx, miny, maxx, maxy, resolution)
-    print(len(r), r)
 
     nx = max(4, int(np.ceil((maxx - minx) / resolution)))
     ny = max(4, int(np.ceil((maxx - minx) / resolution)))
@@ -255,7 +254,7 @@ Inputs:
 - overlap_v: vertical overlap (%)
 - overlap_h: vertical overlap (%)
 """
-def compute_sampling_spacing(altitude, fov, res_v, res_h, overlap_v=50.0, overlap_h=25.0):
+def compute_sampling_spacing(altitude, fov, res_v, res_h, overlap_v=60.0, overlap_h=70.0):
     if overlap_v > 1:
         overlap_v /= 100
     if overlap_h > 1:
@@ -264,12 +263,12 @@ def compute_sampling_spacing(altitude, fov, res_v, res_h, overlap_v=50.0, overla
     # The dimension of the ocean visible by the camera
     # i.e. [30m, 20m], so an overlap of 50% would mean a translation of [15m, 10m]
     view_frustum = np.tan(fov / (2 * 180) * np.pi) * altitude * np.array([res_v, res_h]) / np.linalg.norm([res_v, res_h]) * 2
-    return view_frustum * np.array([overlap_v, overlap_h])
+    return view_frustum * (1 - np.array([overlap_v, overlap_h]))
 
 # import geopandas as gdf
 def show_results(polygons, points, path, directions, plot=None, progress=tqdm):
     transformer = Transformer.from_crs("epsg:4326", "epsg:3857", always_xy=True)
-    sampled_points_web = np.array([transformer.transform(x, y) for x, y in progress.tqdm(points, "Transforming Points")])
+    sampled_points_web = np.array([transformer.transform(x, y) for x, y in progress.tqdm(points, "Transforming Points")])#.reshape((-1, 2))
     path_web = np.array([transformer.transform(x, y) for x, y in progress.tqdm(path.reshape((-1, 2)), "Transforming Path")])
 
     # Create figure
@@ -308,7 +307,6 @@ def get_paths_for_data(data_str, altitude=60, fov=53.3, v_res=5460, h_res=8192, 
     if len(points) > 0:
         paths.append(get_best_path_random(500, np.array(points)))
 
-    print("ALT", altitude)
     spacing = compute_sampling_spacing(altitude, 53.3, 5460, 8192)
 
     if seperate_paths:

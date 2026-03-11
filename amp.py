@@ -22,12 +22,12 @@ def process_json(data, alt, fov, v_res, h_res, progress=gr.Progress()):
     print(
         f"Finish creating plot for mission with {len(points)} points. {t.tm_mon}-{t.tm_mday}-{t.tm_hour}:{t.tm_min}:{t.tm_sec}"
     )
-    return (fig, gr.update(interactive=True), True, (path, directions))
+    return (fig, gr.update(interactive=True), True, (path, directions), len(path))
 
-def export_mission(params):
+def export_mission(params, altitude, interval, n_photos):
     mission, direction = params
-    mission = Mission(mission, 40, 2, 30, directions=direction)
-    writer = MissionWriter()
+    mission = Mission(mission, altitude, interval, n_photos, directions=direction, videos=False)
+    writer = MissionWriter(altitude)
     res = writer.compile(mission)
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".plan", mode="w")
@@ -48,13 +48,17 @@ with gr.Blocks() as demo:
     map_html = gr.HTML(html_code)
 
     with gr.Row():
-        alt = gr.Number(value=60, label="Altitude (m)", visible=True, interactive=True)
+        alt = gr.Number(value=100, label="Altitude (m)", visible=True, interactive=True)
         fov = gr.Number(value=53.3, label="FOV (°)", visible=True, interactive=True)
-        v_res = gr.Number(value=5460, label="Vertical Resolution", visible=True, interactive=True)
-        h_res = gr.Number(value=8192, label="Horizontal Resolution", visible=True, interactive=True)
+        v_res = gr.Number(value=6336, label="Vertical Resolution", visible=True, interactive=True)
+        h_res = gr.Number(value=9504, label="Horizontal Resolution", visible=True, interactive=True)
+
+        interval = gr.Number(value=2, label="Interval", visible=True, interactive=True)
+        n_photos = gr.Number(value=30, label="Photos Per Location", visible=True, interactive=True)
     # Hidden textbox to receive JS data
     hidden = gr.Textbox(label="Shape Summary", visible=True, interactive=False, elem_id="data_dest")
     output = gr.Plot()
+    points_res = gr.Number(value=0, interactive=False)
     export_button = gr.Button("Export", interactive=False)
 
     # JS sets value into hidden
@@ -62,9 +66,9 @@ with gr.Blocks() as demo:
     hidden.change(
         process_json,
         inputs=[hidden, alt, fov, v_res, h_res],
-        outputs=[output, export_button, finished_state, mission_state]
+        outputs=[output, export_button, finished_state, mission_state, points_res]
     )
-    export_button.click(export_mission, mission_state, gr.File(label="Download JSON"))
+    export_button.click(export_mission, [mission_state, alt, interval, n_photos], gr.File(label="Download JSON"))
 
 demo.queue()
 demo.launch(share=True, js="""

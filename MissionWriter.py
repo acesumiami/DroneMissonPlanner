@@ -7,10 +7,10 @@ An API to create plan files to for the Astro
 import json
 
 class MissionWriter(object):
-    def __init__(self):
+    def __init__(self, alt):
         self.vehicle_type = 2
         self.plan = {}
-
+        self.alt = alt
 
 
     def write(self, mission, to_file: str):
@@ -59,7 +59,7 @@ class MissionWriter(object):
             plan.append(
                 {
                     "AMSLAltAboveTerrain": None,
-                    "Altitude": 60,
+                    "Altitude": self.alt,
                     "AltitudeMode": 0,
                     "autoContinue": True,
                     "command": cmd_code,
