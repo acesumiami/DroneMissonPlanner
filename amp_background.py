@@ -96,6 +96,25 @@ def extract_geometry(string_json):
             print(f"Unknown type: {type}")
     return {"poly": polygons, "pts": points }
 
+import pyogrio as pg
+import geopandas as gpd
+import shapely
+def load_kml(path):
+    layers = pg.list_layers(path)
+    res = []
+    for layer in layers:
+        try:
+            geo = gpd.read_file(path, layer=layer[0], engine='pyogrio').geometry
+            for g in geo:
+                if type(g) is shapely.geometry.polygon.Polygon:
+                    res.append(g)
+                else:
+                    print("skipping", g, type(g))
+        except:
+            print(f"Failed loading layer {layer}")
+    return {"poly": res, "pts": [] }
+
+
 RESOLUTION = 5
 
 def generate_points(min_lon, min_lat, max_lon, max_lat, spacing):
@@ -296,8 +315,11 @@ def show_results(polygons, points, path, directions, plot=None, progress=tqdm):
     ax.set_axis_off()
     plt.show()
 
-def get_paths_for_data(data_str, altitude=60, fov=53.3, v_res=5460, h_res=8192, seperate_paths=False, progress=tqdm):
-    geo = extract_geometry(data_str)
+def get_paths_for_data(data_str, altitude=60, fov=53.3, v_res=5460, h_res=8192, v_overlap=60, h_overlap=70, seperate_paths=False, progress=tqdm):
+    if type(data_str) == str:
+        geo = extract_geometry(data_str)
+    else:
+        geo = data_str
     points = []
     directions = []
     for pt in geo['pts']:
@@ -307,7 +329,7 @@ def get_paths_for_data(data_str, altitude=60, fov=53.3, v_res=5460, h_res=8192, 
     if len(points) > 0:
         paths.append(get_best_path_random(500, np.array(points)))
 
-    spacing = compute_sampling_spacing(altitude, 53.3, 5460, 8192)
+    spacing = compute_sampling_spacing(altitude, 53.3, 5460, 8192, v_overlap, h_overlap)
 
     if seperate_paths:
         for p in progress.tqdm(geo['poly'], "Unpacking polygons"):

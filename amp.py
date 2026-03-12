@@ -9,10 +9,10 @@ html_code = """
 <div id="map" style="height:500px;"></div>
 """
 
-def process_json(data, alt, fov, v_res, h_res, progress=gr.Progress()):
+def process_json(data, alt, fov, v_res, h_res, v_overlap, h_overlap, progress=gr.Progress()):
     progress(0, desc="Starting")
 
-    poly, points, path, directions = get_paths_for_data(data, altitude=alt, fov=fov, v_res=v_res, h_res=h_res, seperate_paths=True, progress=progress)
+    poly, points, path, directions = get_paths_for_data(data, altitude=alt, fov=fov, v_res=v_res, h_res=h_res, v_overlap=v_overlap, h_overlap=h_overlap, seperate_paths=True, progress=progress)
     fig, ax = plt.subplots(figsize=(10, 10))
     fig.tight_layout()
     show_results(poly, points, path, directions, (fig, ax), progress=progress)
@@ -40,6 +40,10 @@ def export_mission(params, altitude, interval, n_photos):
 
     return tmp.name  # Return file path
 
+import geopandas as gpd
+def process_kml(path, alt, fov, v_res, h_res, v_overlap, h_overlap):
+    kml = load_kml(path)
+    return process_json(kml, alt, fov, v_res, h_res, v_overlap, h_overlap)
 
 with gr.Blocks() as demo:
     finished_state = gr.State(False)
@@ -53,25 +57,39 @@ with gr.Blocks() as demo:
         v_res = gr.Number(value=6336, label="Vertical Resolution", visible=True, interactive=True)
         h_res = gr.Number(value=9504, label="Horizontal Resolution", visible=True, interactive=True)
 
+        v_overlap = gr.Number(value=70, label="Vertical Overlap (%)", visible=True, interactive=True)
+        h_overlap = gr.Number(value=50, label="Hoziontal Overlap (%)", visible=True, interactive=True)
+
         interval = gr.Number(value=2, label="Interval", visible=True, interactive=True)
         n_photos = gr.Number(value=30, label="Photos Per Location", visible=True, interactive=True)
     # Hidden textbox to receive JS data
     hidden = gr.Textbox(label="Shape Summary", visible=True, interactive=False, elem_id="data_dest")
+    kmls = gr.File(
+        file_types=[".kml"],
+        label="Upload KML",
+    )
+
     output = gr.Plot()
     points_res = gr.Number(value=0, interactive=False)
     export_button = gr.Button("Export", interactive=False)
+
+    kmls.change(
+        process_kml, 
+        inputs=[kmls, alt, fov, v_res, h_res, v_overlap, h_overlap], 
+        outputs=[output, export_button, finished_state, mission_state, points_res]
+    )
 
     # JS sets value into hidden
     # hidden.change(lambda x: process_json(x, alt=alt, fov=fov, v_res=v_res, h_res=h_res), hidden, [output, export_button, finished_state, mission_state])
     hidden.change(
         process_json,
-        inputs=[hidden, alt, fov, v_res, h_res],
+        inputs=[hidden, alt, fov, v_res, h_res, v_overlap, h_overlap],
         outputs=[output, export_button, finished_state, mission_state, points_res]
     )
     export_button.click(export_mission, [mission_state, alt, interval, n_photos], gr.File(label="Download JSON"))
 
 demo.queue()
-demo.launch(share=True, js="""
+demo.launch(share=False, js="""
 x = async () => {
 // Wait until #map exists
 function waitForElement(id) {
