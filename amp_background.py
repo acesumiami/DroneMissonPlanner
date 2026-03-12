@@ -8,6 +8,10 @@ import tqdm
 from shapely.ops import transform
 from pyproj import Transformer
 
+import pyogrio as pg
+import geopandas as gpd
+import shapely
+
 DATA = """
 {
   "type": "FeatureCollection",
@@ -96,9 +100,6 @@ def extract_geometry(string_json):
             print(f"Unknown type: {type}")
     return {"poly": polygons, "pts": points }
 
-import pyogrio as pg
-import geopandas as gpd
-import shapely
 def load_kml(path):
     layers = pg.list_layers(path)
     res = []

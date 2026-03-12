@@ -7,3 +7,5 @@ fiona
 folium
 shapely
 pyproj
+pyogrio
+geopandas
